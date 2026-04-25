@@ -90,6 +90,7 @@ static void mylock_release(struct mutex *lock)
 
 // ------- Part B -------
 // In order to show the dependaces correctly i will use a directed graph
+// to do this i decided to use a linked list cuz it would be easier when showing cycles
 
 struct AdjListNode
 {
@@ -199,68 +200,103 @@ static void freeGraph(struct Graph *graph)
 
 // ------- Part C -------
 // Detects cycles in the graph (i.e., deadlocks)
-// idea: using our graph we can see which nodes have cycles
-// We use DFS and get all nodes
-// input: our depdancy nodes
-// output: which group have a cycle
 
-// if our nodes output were like this
-/*
-Adjacency list representation:
-0: 4 1
-1: 4 3 2 0
-2: 3 1
-3: 4 2 1
-4: 3 1 0
-*/
+// We use DFS traversal to detect cycles in directed graph
 
-// then we know that
-// 0 -> 4 and 4 -> 0 is a cycle and as such could cause a deadlock so we show
-// 0 -> 4 -> 0 cycle detected
-// so genrally our output will be: (start node -> node 1 -> node 2 -> .... -> node n -> start node) cycle detected deadlock possiable
-
-// This is an Algo that only detects if there is a cycle not tell us how many cycles are there
-// TODO: make it check for all cycles
-
-bool isCyclicUtil(vector<vector<int>> &adj, int u, vector<bool> &visited, vector<bool> &recStack)
+static void print_cycle(int *stack, int stack_size, int start)
 {
+	int i;
+	printk(KERN_ALERT "[MiniLockdep] Cycle detected: ");
 
-	// node is already in recursion stack cycle found
-	if (recStack[u])
-		return true;
-
-	// already processed no need to visit again
-	if (visited[u])
-		return false;
-
-	visited[u] = true;
-	recStack[u] = true;
-
-	// Recur for all adjacent nodes
-	for (int v : adj[u])
+	// Print from where cycle starts
+	for (i = start; i < stack_size; i++)
 	{
-		if (isCyclicUtil(adj, v, visited, recStack))
-			return true;
+		printk(KERN_CONT "%d -> ", stack[i]);
 	}
-	// remove from recursion stack before backtracking
-	recStack[u] = false;
-	return false;
+
+	// close the loop
+	printk(KERN_CONT "%d\n", stack[start]);
 }
 
-// Function to detect cycle in a directed graph
-bool isCyclic(vector<vector<int>> &adj)
+static void dfs_cycles(struct Graph *graph, int u, bool *visited, bool *recStack, int *stack, int *stack_index)
 {
-	int V = adj.size();
-	vector<bool> visited(V, false);
-	vector<bool> recStack(V, false);
+	struct AdjListNode *cur;
+	int i;
 
-	// Run DFS from every unvisited node
-	for (int i = 0; i < V; i++)
+	// Has the nodes that are already explored
+	visited[u] = true;
+	// Tracks the nodes in the current recursion path
+	recStack[u] = true;
+
+	// push to stack
+	// This stack will store all our DFS path so we can print the cycles
+	stack[*stack_index] = u;
+	(*stack_index)++;
+
+	cur = graph->array[u];
+	while (cur)
 	{
-		if (!visited[i] && isCyclicUtil(adj, i, visited, recStack))
-			return true;
+		int v = cur->dest;
+
+		if (!visited[v])
+		{
+			dfs_cycles(graph, v, visited, recStack, stack, stack_index);
+		}
+		else if (recStack[v])
+		{
+			// if cycle found find where v appears in stack
+			for (i = 0; i < *stack_index; i++)
+			{
+				if (stack[i] == v)
+				{
+					print_cycle(stack, *stack_index, i);
+					break;
+				}
+			}
+		}
+
+		cur = cur->next;
 	}
-	return false;
+
+	// pop from stack
+	(*stack_index)--;
+	recStack[u] = false;
+}
+
+static void find_cycles(struct Graph *graph)
+{
+	bool *visited;
+	bool *recStack;
+	int *stack;
+	int stack_index = 0;
+	int i;
+
+	if (!graph)
+		return;
+
+	visited = kcalloc(graph->V, sizeof(bool), GFP_KERNEL);
+	recStack = kcalloc(graph->V, sizeof(bool), GFP_KERNEL);
+	stack = kcalloc(graph->V, sizeof(int), GFP_KERNEL);
+
+	if (!visited || !recStack || !stack)
+	{
+		kfree(visited);
+		kfree(recStack);
+		kfree(stack);
+		return;
+	}
+
+	for (i = 0; i < graph->V; i++)
+	{
+		if (!visited[i])
+		{
+			dfs_cycles(graph, i, visited, recStack, stack, &stack_index);
+		}
+	}
+
+	kfree(visited);
+	kfree(recStack);
+	kfree(stack);
 }
 
 MODULE_LICENSE("GPL");
