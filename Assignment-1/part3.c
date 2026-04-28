@@ -5,6 +5,7 @@
 #include <dirent.h>
 #include <ctype.h>
 
+
 // Check if a string contains only digits, used to check if a directory name in /proc is a PID
 int is_PID(const char *str) 
 {
@@ -42,8 +43,8 @@ void print_processes()
     }
     struct dirent *entry;
 
-    printf("\nPID\tNAME\n");
-    printf("-----------------------------\n");
+    printf("%-7s %-20s\n", "PID", "NAME");
+    printf("---------------------------------------\n");
 
     while ((entry = readdir(dir)) != NULL) 
     {
@@ -65,7 +66,7 @@ void print_processes()
                 // Remove newline character
                 name[strcspn(name, "\n")] = 0;
 
-                printf("%s\t%s\n", entry->d_name, name);
+                printf("%-7s %-20s\n", entry->d_name, name);
 
                 fclose(f);
             }
@@ -88,6 +89,21 @@ void print_bar(double percentage)
         else printf("-");
     }
     printf("]");
+}
+
+// get the system uptime from /proc/uptime
+int get_uptime()
+{
+    FILE *f = fopen("/proc/uptime", "r");
+    if(!f)
+    {
+        perror("failed to open /proc/uptime");
+        return 0;
+    }
+    float uptime;
+    fscanf(f, "%f", &uptime);
+    fclose(f);
+    return (int)uptime;
 }
 
 int main() 
@@ -151,6 +167,24 @@ int main()
 
         // Count processes
         int proc_count = count_processes();
+
+        // Display
+        printf("Mini-HTOP");
+        printf("Press n then Enter to quit\n\n");
+        printf("CPU   "); 
+        print_bar(cpu_usage); 
+        printf("  %6.2f%%\n", cpu_usage);
+        printf("MEM   "); 
+        print_bar(mem_usage);
+        printf("  %6.2f%% (%lld / %lld MB)\n", used/1024, memTotal/1024);
+        printf("PROC %d\n", proc_count);
+        printf("UPTIME %d\n", get_uptime());
+        print_processes();
+
+        //exiting using N key
+        char c;
+        scanf(" %c", &c);
+        if(c == 'n' || c == 'N') break;
     }
 
     return 0;
