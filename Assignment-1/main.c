@@ -13,6 +13,9 @@ static void printGraph(struct Graph *graph);
 static void find_cycles(struct Graph *graph);
 static struct Graph *global_graph;
 
+static struct completion threadA_done;
+static struct completion threadB_done;
+
 // ------- Part A -------
 // the size of the lock table array
 #define MAX_LOCKS 10
@@ -367,6 +370,7 @@ static int thread_A(void *data)
 
     mylock_release(&lock2);
     mylock_release(&lock1);
+    complete(&threadA_done);
     return 0;
 }
 
@@ -379,6 +383,7 @@ static int thread_B(void *data)
 
     mylock_release(&lock1);
     mylock_release(&lock2);
+    complete(&threadB_done);
     return 0;
 }
 
@@ -388,6 +393,9 @@ static int my_init(void)
 {
     mutex_init(&lock1);
     mutex_init(&lock2);
+
+    init_completion(&threadA_done);
+    init_completion(&threadB_done);
 
     global_graph = createGraph(MAX_LOCKS);
 
@@ -402,12 +410,8 @@ static void my_exit(void)
 {
     force_stop = true;
 
-    msleep(300);
-
-    if (threadA)
-        kthread_stop(threadA);
-    if (threadB)
-        kthread_stop(threadB);
+    wait_for_completion_timeout(&threadA_done, msecs_to_jiffies(2000));
+    wait_for_completion_timeout(&threadB_done, msecs_to_jiffies(2000));
 
     freeGraph(global_graph);
     printk(KERN_INFO "MiniLockdep Unloaded\n");
