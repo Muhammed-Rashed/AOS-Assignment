@@ -56,7 +56,9 @@ static struct lock_info *get_lock_info(struct mutex *lock)
     return NULL;
 }
 
+static bool force_stop = false;
 static struct mutex *last_lock = NULL;
+
 static void mylock_acquire(struct mutex *lock)
 {
     pid_t pid = current->pid;
@@ -64,6 +66,7 @@ static void mylock_acquire(struct mutex *lock)
 
     printk(KERN_INFO "[MiniLockdep] Thread %d acquiring lock\n", pid);
 
+    // Build the dependency edge BEFORE trying to acquire
     if (last_lock && last_lock != lock)
     {
         struct lock_info *src_info = get_lock_info(last_lock);
@@ -79,12 +82,23 @@ static void mylock_acquire(struct mutex *lock)
         }
     }
 
-    mutex_lock(lock);
+    // I added this cuz when i ran rmmod it hung indefinatly
+    while (!mutex_trylock(lock))
+    {
+        if (force_stop || kthread_should_stop())
+        {
+            printk(KERN_INFO "[MiniLockdep] Thread %d: exit signal received, aborting lock acquire\n", pid);
+            return;
+        }
+        msleep(100);
+    }
+
     last_lock = lock;
 
     info = get_lock_info(lock);
     if (!info)
         return;
+
     info->owner = pid;
     printk(KERN_INFO "[MiniLockdep] Thread %d acquired lock\n", pid);
 }
@@ -126,8 +140,6 @@ struct Graph
     // array of linked lists one per vertex
     struct AdjListNode **array;
 };
-
-static struct Graph *global_graph;
 
 // We need a way to allocate and return a new edge node pointing to our destination
 static struct AdjListNode *newAdjListNode(int dest)
@@ -388,13 +400,16 @@ static int my_init(void)
 
 static void my_exit(void)
 {
+    force_stop = true;
+
+    msleep(300);
+
     if (threadA)
         kthread_stop(threadA);
     if (threadB)
         kthread_stop(threadB);
 
     freeGraph(global_graph);
-
     printk(KERN_INFO "MiniLockdep Unloaded\n");
 }
 
