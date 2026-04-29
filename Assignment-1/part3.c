@@ -169,22 +169,23 @@ int main()
         int proc_count = count_processes();
 
         // Display
-        printf("Mini-HTOP");
+        printf("Mini-HTOP\n");
         printf("Press n then Enter to quit\n\n");
         printf("CPU   "); 
         print_bar(cpu_usage); 
         printf("  %6.2f%%\n", cpu_usage);
         printf("MEM   "); 
         print_bar(mem_usage);
-        printf("  %6.2f%% (%lld / %lld MB)\n", used/1024, memTotal/1024);
+        printf("  %6.2f%% (%lld / %lld MB)\n", mem_usage, used/1024, memTotal/1024);
         printf("PROC %d\n", proc_count);
         printf("UPTIME %d\n", get_uptime());
         print_processes();
 
-        //exiting using N key
+        // Exiting using N key
         char c;
         scanf(" %c", &c);
         if(c == 'n' || c == 'N') break;
+        sleep(1);
     }
 
     return 0;
