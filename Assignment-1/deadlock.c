@@ -14,21 +14,27 @@ Thread A <----- Lock 1
     ⌄             |
  Lock 2 ------> Thread B
 
+Thread A: acquires lock1 then tries lock2
+Thread B: acquires lock2 then tries lock1
+Circular wait → deadlock
+
 */
 
+// Global locks
 struct mutex lock1;
 struct mutex lock2;
 
+// Kernel thread handles
 struct task_struct *threadA, *threadB;
 
 static int thread_A(void *data) {
-    // Waits for lock1 and returns if interrupted (to avoid exit freeze)
+    // Acquire lock1, can be interrupted if the thread is asked to stop
     if (mutex_lock_interruptible(&lock1))
         return 0;
 
-    msleep(100); // Wait 1 second
+    msleep(100); // Wait 100 milliseconds
 
-    // Waits for lock2 and returns if interrupted (to avoid exit freeze)
+    // Acquire lock2, can be interrupted if the thread is asked to stop
     if (mutex_lock_interruptible(&lock2)) {
         mutex_unlock(&lock1);
         return 0;
@@ -40,13 +46,13 @@ static int thread_A(void *data) {
 }
 
 static int thread_B(void *data) {
-    // Waits for lock2 and returns if interrupted (to avoid exit freeze)
+    // Acquire lock2, can be interrupted if the thread is asked to stop
     if (mutex_lock_interruptible(&lock2))
         return 0;
 
-    msleep(100); // Wait 1 second
+    msleep(100); // Wait 100 milliseconds
     
-    // Waits for lock1 and returns if interrupted (to avoid exit freeze)
+    // Acquire lock1, can be interrupted if the thread is asked to stop
     if (mutex_lock_interruptible(&lock1)) {
         mutex_unlock(&lock2);
         return 0;
