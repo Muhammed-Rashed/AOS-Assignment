@@ -4,6 +4,7 @@
 #include <string.h>
 #include <dirent.h>
 #include <ctype.h>
+#include <poll.h>
 
 // Check if a string contains only digits, used to check if a directory name in /proc is a PID
 int is_PID(const char *str) 
@@ -42,8 +43,8 @@ void print_processes()
     }
     struct dirent *entry;
 
-    printf("\nPID\tNAME\n");
-    printf("-----------------------------\n");
+    printf("%-7s %-20s\n", "PID", "NAME");
+    printf("---------------------------------------\n");
 
     while ((entry = readdir(dir)) != NULL) 
     {
@@ -65,7 +66,7 @@ void print_processes()
                 // Remove newline character
                 name[strcspn(name, "\n")] = 0;
 
-                printf("%s\t%s\n", entry->d_name, name);
+                printf("%-7s %-20s\n", entry->d_name, name);
 
                 fclose(f);
             }
@@ -90,6 +91,21 @@ void print_bar(double percentage)
     printf("]");
 }
 
+// get the system uptime from /proc/uptime
+int get_uptime()
+{
+    FILE *f = fopen("/proc/uptime", "r");
+    if(!f)
+    {
+        perror("failed to open /proc/uptime");
+        return 0;
+    }
+    float uptime;
+    fscanf(f, "%f", &uptime);
+    fclose(f);
+    return (int)uptime;
+}
+
 int main() 
 {
     // user is time CPU spends running normal user processes
@@ -98,6 +114,11 @@ int main()
     // idle is time CPU spends doing nothing
     long long user, nice, system, idle;
     long long prev_idle = 0, prev_total = 0;
+
+    // This struct tells the OS which file descriptor to monitor and what events to look for
+    struct pollfd fds[1];
+    fds[0].fd = STDIN_FILENO;  // Sets the file descriptor to std input(keyboard)
+    fds[0].events = POLLIN;    // We are interested in read events (notify when data is available to read)
 
     while (1) 
     {
@@ -151,6 +172,38 @@ int main()
 
         // Count processes
         int proc_count = count_processes();
+
+        // Display
+        printf("Mini-HTOP\n");
+        printf("Press n then Enter to quit\n\n");
+        printf("CPU   "); 
+        print_bar(cpu_usage); 
+        printf("  %6.2f%%\n", cpu_usage);
+        printf("MEM   "); 
+        print_bar(mem_usage);
+        printf("  %6.2f%% (%lld / %lld MB)\n", mem_usage, used/1024, memTotal/1024);
+        printf("PROC %d\n", proc_count);
+        printf("UPTIME %d\n", get_uptime());
+        print_processes();
+
+        // Exiting using N key
+        
+        // This waits for 1 sec or until Enter is pressed
+        // This pauses the program for 1 sec
+        int activity = poll(fds, 1, 1000);
+
+        // Checks what happened in this 1 sec
+        // If activity > 0 that mean something happend before this 1 second passed
+        // else if activity == 0 that means the 1 sec simply passed with no input and the loop continues
+        if (activity > 0) {
+            // This confirms that what happened was actually a keypress
+            if(fds[0].revents & POLLIN)
+            {
+                char input[10];
+                fgets(input, sizeof(input), stdin); // Reads the typed line
+                if (input[0] == 'n' || input[0] == 'N') break;  // If the first char is n, the program exits
+            }
+        }
     }
 
     return 0;

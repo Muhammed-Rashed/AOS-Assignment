@@ -38,9 +38,11 @@ static struct lock_info *get_lock_info(struct mutex *lock)
 	// create new entry if lock not found bec this is the first time we are tracking this lock
 	if (lock_count < MAX_LOCKS)
 	{
-		lock_table[lock_count].lock = lock;
-		lock_table[lock_count].owner = -1;
-		return &lock_table[lock_count++];
+		struct lock_info *info = &lock_table[lock_count];
+		info->lock = lock;
+		info->owner = -1;
+		lock_count++;
+		return info;
 	}
 
 	// we are full and cant take anymore locks
@@ -94,16 +96,21 @@ static void mylock_release(struct mutex *lock)
 
 struct AdjListNode
 {
+	// the destination node
 	int dest;
+	// next neighbor in the linked list
 	struct AdjListNode *next;
 };
 
 struct Graph
 {
+	// total number of vertices
 	int V;
+	// array of linked lists one per vertex
 	struct AdjListNode **array;
 };
 
+// We need a way to allocate and return a new edge node pointing to our destination
 static struct AdjListNode *newAdjListNode(int dest)
 {
 	struct AdjListNode *node;
@@ -112,11 +119,14 @@ static struct AdjListNode *newAdjListNode(int dest)
 	if (!node)
 		return NULL;
 
+	// set the destination vertex
 	node->dest = dest;
+	// no next neighbor .... YET
 	node->next = NULL;
 	return node;
 }
 
+// Allocates and returns a new graph with V vertices and no edges
 static struct Graph *createGraph(int V)
 {
 	struct Graph *graph;
@@ -127,6 +137,7 @@ static struct Graph *createGraph(int V)
 
 	graph->V = V;
 
+	// All adjacency list heads start as NULL AKA no edges yet
 	graph->array = kcalloc(V, sizeof(struct AdjListNode *), GFP_KERNEL);
 	if (!graph->array)
 	{
@@ -137,13 +148,16 @@ static struct Graph *createGraph(int V)
 	return graph;
 }
 
+// Adds a directed edge from vertex "src" to vertex "dest"
 static void addEdge(struct Graph *graph, int src, int dest)
 {
 	struct AdjListNode *node;
 
+	//  We must validate inputs before doing anything
 	if (!graph || src >= graph->V || dest >= graph->V)
 		return;
 
+	// Create a new edge node
 	node = newAdjListNode(dest);
 	if (!node)
 		return;
@@ -152,6 +166,7 @@ static void addEdge(struct Graph *graph, int src, int dest)
 	graph->array[src] = node;
 }
 
+// Print the adjacency list of the graph to the kernel log
 static void printGraph(struct Graph *graph)
 {
 	int i;
@@ -175,6 +190,7 @@ static void printGraph(struct Graph *graph)
 	}
 }
 
+// free up everything
 static void freeGraph(struct Graph *graph)
 {
 	int i;
@@ -183,18 +199,24 @@ static void freeGraph(struct Graph *graph)
 	if (!graph)
 		return;
 
+	// free everynode in every adj list
 	for (i = 0; i < graph->V; i++)
 	{
 		cur = graph->array[i];
 		while (cur)
 		{
+			// save current node
 			tmp = cur;
+			// advance without freeing
 			cur = cur->next;
+			// BE FREE
 			kfree(tmp);
 		}
 	}
 
+	// Free the array of list heads
 	kfree(graph->array);
+	// Free the graph itself
 	kfree(graph);
 }
 
