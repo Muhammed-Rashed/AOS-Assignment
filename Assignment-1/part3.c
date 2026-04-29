@@ -4,7 +4,7 @@
 #include <string.h>
 #include <dirent.h>
 #include <ctype.h>
-
+#include <poll.h>
 
 // Check if a string contains only digits, used to check if a directory name in /proc is a PID
 int is_PID(const char *str) 
@@ -115,6 +115,11 @@ int main()
     long long user, nice, system, idle;
     long long prev_idle = 0, prev_total = 0;
 
+    // This struct tells the OS which file descriptor to monitor and what events to look for
+    struct pollfd fds[1];
+    fds[0].fd = STDIN_FILENO;  // Sets the file descriptor to std input(keyboard)
+    fds[0].events = POLLIN;    // We are interested in read events (notify when data is available to read)
+
     while (1) 
     {
         // Clear screen to refresh display
@@ -182,10 +187,23 @@ int main()
         print_processes();
 
         // Exiting using N key
-        char c;
-        scanf(" %c", &c);
-        if(c == 'n' || c == 'N') break;
-        sleep(1);
+        
+        // This waits for 1 sec or until Enter is pressed
+        // This pauses the program for 1 sec
+        int activity = poll(fds, 1, 1000);
+
+        // Checks what happened in this 1 sec
+        // If activity > 0 that mean something happend before this 1 second passed
+        // else if activity == 0 that means the 1 sec simply passed with no input and the loop continues
+        if (activity > 0) {
+            // This confirms that what happened was actually a keypress
+            if(fds[0].revents & POLLIN)
+            {
+                char input[10];
+                fgets(input, sizeof(input), stdin); // Reads the typed line
+                if (input[0] == 'n' || input[0] == 'N') break;  // If the first char is n, the program exits
+            }
+        }
     }
 
     return 0;
