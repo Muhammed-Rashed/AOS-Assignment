@@ -112,7 +112,7 @@ int main()
     // nice is time CPU takes executing low-priority processes
     // system is time CPU spends executing OS code
     // idle is time CPU spends doing nothing
-    long long user, nice, system, idle;
+    long long user, nice, sys, idle;
     long long prev_idle = 0, prev_total = 0;
 
     while (1) 
