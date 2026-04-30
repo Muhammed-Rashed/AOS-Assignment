@@ -132,10 +132,10 @@ int main()
             perror("Failed to open /proc/stat");
             return 1;
         }
-        fscanf(file, "cpu %lld %lld %lld %lld", &user, &nice, &system, &idle);
+        fscanf(file, "cpu %lld %lld %lld %lld", &user, &nice, &sys, &idle);
         fclose(file);
         
-        long long total = user + nice + system + idle;
+        long long total = user + nice + sys + idle;
         double cpu_usage = 0.0;
 
         // Calculate CPU usage using previous values, using delta method
@@ -143,7 +143,7 @@ int main()
         {
             long long total_diff = total - prev_total;
             long long idle_diff = idle - prev_idle;
-            cpu_usage = (double)(total_diff - idle_diff) / total_diff * 100.0;
+            if (total_diff > 0) cpu_usage = (double)(total_diff - idle_diff) / total_diff * 100.0;
         }
 
         prev_total = total;
@@ -183,7 +183,7 @@ int main()
         print_bar(mem_usage);
         printf("  %6.2f%% (%lld / %lld MB)\n", mem_usage, used/1024, memTotal/1024);
         printf("PROC %d\n", proc_count);
-        printf("UPTIME %d\n", get_uptime());
+        printf("UPTIME %d sec\n", get_uptime());
         print_processes();
 
         // Exiting using N key
